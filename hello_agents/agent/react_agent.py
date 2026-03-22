@@ -1,62 +1,40 @@
-from typing import Optional, List, Tuple, Dict, Any
+from typing import Optional, List, Dict
 from hello_agents.agent.agent import Agent
 from hello_agents.llm.HelloAgentsLLM import HelloAgentsLLM
 from hello_agents.config.config import Config
+from hello_agents.memory.memory_tool import MemoryTool
 from hello_agents.tool.tool_registry import ToolRegistry
-from hello_agents.tool.tool import Tool, ToolParameter
-import re
+import json
 from hello_agents.tool.tool_list.bash_tool import BashTool
 from hello_agents.tool.tool_list.write_tool import WriteTool
 from hello_agents.tool.tool_list.read_tool import ReadTool
+from hello_agents.config.memory_config import MemoryConfig
 
-# ReAct Agent 提示模板
-MY_REACT_PROMPT = """
-你是一个具备推理和行动能力的AI助手。你可以通过思考分析问题，然后调用合适的工具来获取信息，最终给出准确的答案。 
- 
- ## 可用工具 
- {tools_info} 
- 
- ## 工作流程 
- 请严格按照以下格式进行回应，**每次只能输出以下格式中的一种，绝对不能同时输出两种**:
- 
- ### 格式1: 只输出思考
- ```
-Thought: 分析当前问题，思考需要什么信息或采取什么行动。
-```
 
-### 格式2: 只输出行动
- ```
-Action: 如果思考给出了行动，就到工具中选择一个合适的工具去执行，格式必须是以下之一:
-- {{tool_name}}[参数1=值1, 参数2=值2] - 调用指定工具，严格按照工具定义的参数名称和类型填写
-- Finish[最终答案] - 当你有足够信息给出最终答案时
-```
 
-**工具调用示例:**
-- bash[command=ls -la] - 执行bash命令
-- read[file_path=/path/to/file.txt] - 读取文件内容
-- write[file_path=/path/to/file.txt, content=Hello World] - 写入文件内容
+DEFAULT_SYSTEM_PROMPT = """你是一个智能助手，能够通过推理和使用工具来解决问题。
 
-## 重要提醒
-**必须严格遵守以下规则，否则你的回答将被视为无效:**
-1. **每次回应只能包含Thought或Action中的一个，绝对不能同时包含两个**
-2. **必须使用指定的格式**，包括正确的缩进和标记
-3. **工具调用的格式必须严格遵循:工具名[参数名1=值1, 参数名2=值2]**
-4. **参数名称必须与工具定义完全一致，参数值要符合参数类型要求**
-5. **只有当你确信有足够信息回答问题时，才使用Finish**
-6. **如果工具返回的信息不够，继续使用其他工具或相同工具的不同参数**
+## 工作原则
+1. 仔细分析用户的问题，确定需要什么信息或操作
+2. 如果需要外部信息或执行操作，调用合适的工具
+3. 根据工具返回的结果继续推理，直到能够回答用户的问题
+4. 当你有足够的信息时，直接给出最终答案
 
-## 当前任务
-**Question:** {task}
+## 工具使用
+- 你可以使用提供的工具来获取信息或执行操作
+- 每次只调用必要的工具
+- 根据工具返回的结果调整你的策略
 
-## 执行历史
-{history}
+## 回答要求
+- 用中文回答
+- 回答要简洁、准确、有帮助
+- 如果使用了工具，要基于工具返回的结果来回答"""
 
-现在开始你的推理和行动，**只输出一种格式**:
-"""
 
 class ReActAgent(Agent):
     """
-    重写的ReAct Agent - 推理与行动结合的智能体
+    ReAct Agent - 推理与行动结合的智能体
+    使用 LLM 原生 tool_calls 功能
     """
 
     def __init__(
@@ -66,19 +44,17 @@ class ReActAgent(Agent):
         tool_registry: ToolRegistry,
         system_prompt: Optional[str] = None,
         config: Optional[Config] = None,
-        max_steps: int = 100,
-        custom_prompt: Optional[str] = None
+        max_steps: int = 100
     ):
         super().__init__(name, llm, system_prompt, config)
         self.tool_registry = tool_registry
         self.max_steps = max_steps
-        self.current_history: List[str] = []
-        self.prompt_template = custom_prompt if custom_prompt else MY_REACT_PROMPT
+        self.current_history: List[Dict] = []
         print(f"✅ {name} 初始化完成，最大步数: {max_steps}")
 
     def run(self, input_text: str, **kwargs) -> str:
         """
-        运行ReAct Agent
+        运行 ReAct Agent
         """
         self.current_history = []
         current_step = 0
@@ -89,116 +65,174 @@ class ReActAgent(Agent):
             current_step += 1
             print(f"\n--- 第 {current_step} 步 ---")
 
-            # 1. 构建提示词
-            tools_desc = self.tool_registry.get_tools_description()
-            history_str = "\n".join(self.current_history)
-            prompt = self.prompt_template.format(
-                tools_info=tools_desc,
-                task=input_text,
-                history=history_str
-            )
+            result = self._run_step(input_text)
+            
+            if result is not None:
+                return result
 
-            # 2. 调用LLM
-            messages = [
-                {"role": "system", "content": self.system_prompt or "你是一个智能助手，能够通过推理和使用工具来解决问题。"},
-                {"role": "user", "content": prompt}
-            ]
-            response_text = self.llm.think(messages, temperature=self.config.temperature)
-            if not response_text:
-                return "抱歉，我无法处理这个请求。"
+        return "抱歉，我无法在限定步数内完成这个任务。"
 
-            # 3. 解析输出
-            thought, action, action_input, is_finish = self._parse_response(response_text)
+    def _build_messages(self, input_text: str) -> List[Dict]:
+        """
+        构建消息列表
+        """
+        messages = [
+            {"role": "system", "content": self.system_prompt or DEFAULT_SYSTEM_PROMPT}
+        ]
+        
+        messages.extend(self.current_history)
+        
+        if not self.current_history:
+            messages.append({"role": "user", "content": input_text})
+        
+        return messages
 
-            # 4. 处理思考
-            if thought:
-                print(f"🧠 思考: {thought}")
-                self.current_history.append(f"Thought: {thought}")
-                # 如果只有思考，继续下一轮循环
+    def _run_step(self, input_text: str) -> Optional[str]:
+        """
+        执行单步推理
+        根据 finish_reason 判断：
+        - "stop": 正常结束，返回内容
+        - "tool_calls": 需要执行工具调用
+        """
+        tools_schema = self.tool_registry.get_tools_schema()
+        messages = self._build_messages(input_text)
+
+        llm_with_tools = HelloAgentsLLM(
+            model=self.llm.model,
+            api_key=self.llm.api_key,
+            base_url=self.llm.base_url,
+            timeout=self.llm.timeout,
+            tools=tools_schema
+        )
+        
+        response = llm_with_tools.think(messages, temperature=self.config.temperature)
+
+
+        if not response:
+            return "抱歉，我无法处理这个请求。"
+
+        if response.get("full_reasoning"):
+            print(f"🧠 思考: {response['full_reasoning']}")
+
+        raw_chunks = response.get("raw_chunks", [])
+        finish_reason = self._get_finish_reason(raw_chunks)
+        
+        print(f"📌 Finish Reason: {finish_reason}")
+
+        if finish_reason == "stop":
+            content = response.get("full_content", "")
+            if content:
+                print(f"📝 最终回答: {content}")
+                self.current_history.append({"role": "assistant", "content": content})
+                return content
+            return None
+
+        if finish_reason == "tool_calls":
+            tool_calls = self._extract_tool_calls(raw_chunks)
+            
+            if tool_calls:
+                assistant_message = {
+                    "role": "assistant",
+                    "reasoning": response.get("full_reasoning") or None,
+                    "content": response.get("full_content") or None,
+                    "tool_calls": tool_calls
+                }
+                self.current_history.append(assistant_message)
+                
+                for tool_call in tool_calls:
+                    tool_name = tool_call.get("function", {}).get("name")
+                    tool_args_str = tool_call.get("function", {}).get("arguments", "{}")
+                    tool_call_id = tool_call.get("id", "")
+                    
+                    try:
+                        tool_args = json.loads(tool_args_str) if isinstance(tool_args_str, str) else tool_args_str
+                    except json.JSONDecodeError:
+                        tool_args = {}
+                    
+                    print(f"🔧 工具调用: {tool_name}({tool_args})")
+                    
+                    # 直接传递字典参数，避免类型转换问题
+                    observation = self.tool_registry.execute_tool(tool_name, tool_args)
+                    print(f"👁️  观察: {observation}")
+                    
+                    tool_result_message = {
+                        "role": "tool",
+                        "tool_call_id": tool_call_id,
+                        "name": tool_name,
+                        "content": str(observation)
+                    }
+                    self.current_history.append(tool_result_message)
+                
+                return None
+
+        return None
+
+    def _get_finish_reason(self, raw_chunks: List[dict]) -> Optional[str]:
+        """
+        从原始响应块中获取 finish_reason
+        """
+        for chunk in reversed(raw_chunks):
+            choices = chunk.get("choices", [])
+            if choices:
+                finish_reason = choices[0].get("finish_reason")
+                if finish_reason:
+                    return finish_reason
+        return None
+
+    def _extract_tool_calls(self, raw_chunks: List[dict]) -> List[dict]:
+        """
+        从原始响应块中提取 tool_calls
+        """
+        tool_calls = {}
+        
+        for chunk in raw_chunks:
+            choices = chunk.get("choices", [])
+            if not choices:
                 continue
-
-            # 5. 检查完成条件
-            if action and is_finish:
-                final_answer = action_input
-                self.current_history.append(f"Action: Finish[{final_answer}]")
-                print(f"📝 最终回答: {final_answer}")
-                return final_answer
-
-            # 6. 执行工具调用
-            if action:
-                # 执行行动
-                print(f"📝 行动: `{action}[{action_input}]`")
-                observation = self.tool_registry.execute_tool(action, action_input)
-                print(f"👁️  观察: {observation}")
-                self.current_history.append(f"Action: `{action}[{action_input}]`")
-                self.current_history.append(f"Observation: {observation}")
-
-        # 达到最大步数
-        final_answer = "抱歉，我无法在限定步数内完成这个任务。"
-        self.current_history.append(f"Action: Finish[{final_answer}]")
-        return final_answer
-    
-    def _get_tools_info(self) -> str:
-        """
-        获取工具信息
-        """
-        tools_info = []
-        for tool in self.tool_registry.get_tool_list():
-            params = tool.get_parameters()
-            param_str = ", ".join([f"{p.name}: {p.type}" for p in params])
-            tools_info.append(f"- {tool.name}: {tool.description} (参数: {param_str})")
+            
+            delta = choices[0].get("delta", {})
+            chunk_tool_calls = delta.get("tool_calls", [])
+            
+            for tc in chunk_tool_calls:
+                idx = tc.get("index", 0)
+                if idx not in tool_calls:
+                    tool_calls[idx] = {
+                        "id": tc.get("id", ""),
+                        "type": tc.get("type", "function"),
+                        "function": {"name": "", "arguments": ""}
+                    }
+                
+                if tc.get("id"):
+                    tool_calls[idx]["id"] = tc["id"]
+                
+                func = tc.get("function", {})
+                if func.get("name"):
+                    tool_calls[idx]["function"]["name"] = func["name"]
+                if func.get("arguments"):
+                    tool_calls[idx]["function"]["arguments"] += func["arguments"]
         
-        return "\n".join(tools_info) if tools_info else "暂无可用工具"
-    
-    def _parse_response(self, response: str) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[bool]]:
-        """
-        解析LLM响应
-        返回: (思考, 工具名称, 工具输入, 是否为Finish)
-        """
-        # 提取思考
-        thought_match = re.search(r'Thought: (.*?)(?:\n|$)', response)
-        thought = thought_match.group(1).strip() if thought_match else None
-
-        if thought:
-            print(f"这个Thought: {thought}")
-        
-        # 提取行动
-        # 检查是否为Finish
-        finish_match = re.search(r'Action: Finish\[(.*?)\]', response)
-        if finish_match:
-            return None, "Finish", finish_match.group(1).strip(), True
-        
-        # 检查是否为工具调用
-        action_match = re.search(r'Action: (\w+)\[(.*?)\]', response)
-        if action_match:
-            action = action_match.group(1).strip()
-            action_input = action_match.group(2).strip()
-            print(f"Action: {action}{action_input}")
-            return None, action, action_input, False
-        
-        # 如果只返回了思考
-        if thought:
-            return thought, None, None, False
-        
-        return None, None, None, False
-    
+        return list(tool_calls.values())
 
 
 if __name__ == "__main__":
-    # 初始化LLM
     llm = HelloAgentsLLM()
-    # 初始化工具注册表
     tool_registry = ToolRegistry()
+    memory_config = MemoryConfig(database_path="travel_memory.db")
 
-    # 注册工具
     bash_tool = BashTool()
     read_tool = ReadTool()
     write_tool = WriteTool()
+    memory_tool = MemoryTool(user_id="user_xiaohong", memory_config=memory_config)
     
     tool_registry.register_tool(bash_tool)
     tool_registry.register_tool(read_tool)
     tool_registry.register_tool(write_tool)
+    tool_registry.register_tool(memory_tool)
     
-    # 初始化Agent
-    agent = ReActAgent(name="HelloAgent", llm=llm, tool_registry=tool_registry, config=Config())
-    agent.run("请帮我看一下当前项目的结构")
+    agent = ReActAgent(
+        name="HelloAgent", 
+        llm=llm, 
+        tool_registry=tool_registry, 
+        config=Config()
+    )
+    agent.run("我之前说的去日本，你说咋样？")

@@ -39,48 +39,63 @@ class ToolRegistry:
 
         return "\n\n".join(descriptions) if descriptions else "暂无可用工具"
 
+    def get_tools_schema(self) -> List[dict]:
+        """
+        获取所有工具的 OpenAI tools 格式 schema
+        用于传递给 LLM 的 tools 参数
+        """
+        tools_schema = []
+        for tool in self._tools.values():
+            properties = {}
+            required = []
+            
+            for param in tool.get_parameters():
+                properties[param.name] = {
+                    "type": param.type,
+                    "description": param.description
+                }
+                if param.default is not None:
+                    properties[param.name]["default"] = param.default
+                if param.required:
+                    required.append(param.name)
+            
+            tool_schema = {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": {
+                        "type": "object",
+                        "properties": properties,
+                        "required": required
+                    }
+                }
+            }
+            tools_schema.append(tool_schema)
+        
+        return tools_schema
+
     def get_tool(self, name: str) -> Tool | None:
         """根据名称获取工具"""
         return self._tools.get(name)
 
-    def execute_tool(self, tool_name: str, tool_input: str) -> str:
+    def execute_tool(self, tool_name: str, tool_input) -> str:
         """
         执行工具
+        
+        Args:
+            tool_name: 工具名称
+            tool_input: 工具输入，可以是字符串或字典
         """
         try:
-            # 尝试从ToolRegistry获取工具
             tool = self.get_tool(tool_name)
             if tool:
-                # 解析参数
-                params = {}
-                if tool_input:
-                    # 检查是否包含键值对
-                    if "=" in tool_input:
-                        # 按逗号分割参数，但需要处理引号内的逗号
-                        import re
-                        # 使用正则表达式分割，考虑引号内的内容
-                        param_pairs = re.findall(r'([^=,\s]+)\s*=\s*("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'|[^,\s]+)', tool_input)
-                        
-                        for key, value in param_pairs:
-                            # 去除引号
-                            if (value.startswith('"') and value.endswith('"')) or \
-                               (value.startswith("'") and value.endswith("'")):
-                                value = value[1:-1]
-                            params[key.strip()] = value.strip()
-                    else:
-                        # 对于没有键值对的情况，根据工具类型进行特殊处理
-                        if tool_name == "bash":
-                            # 对于bash工具，直接将输入作为command参数
-                            params["command"] = tool_input
-                        else:
-                            # 其他工具尝试智能推断参数
-                            tool_params = tool.get_parameters()
-                            if len(tool_params) == 1:
-                                # 如果只有一个参数，直接使用
-                                params[tool_params[0].name] = tool_input
-                            else:
-                                # 多参数但未指定参数名，报错
-                                return f"错误：工具 '{tool_name}' 需要指定参数名称，格式应为: {tool_name}[参数名=值]"
+                # 如果输入是字典，直接使用
+                if isinstance(tool_input, dict):
+                    params = tool_input
+                else:
+                    # 解析字符串参数
+                    params = self._parse_string_input(tool_name, tool_input, tool)
                 
                 # 验证必填参数
                 tool_params = tool.get_parameters()
@@ -95,12 +110,48 @@ class ToolRegistry:
             return f"错误：工具 '{tool_name}' 不存在"
         except Exception as e:
             return f"执行工具时出错: {str(e)}"
+    
+    def _parse_string_input(self, tool_name: str, tool_input: str, tool: Tool) -> dict:
+        """解析字符串输入为参数字典"""
+        params = {}
+        if tool_input:
+            # 检查是否包含键值对
+            if "=" in tool_input:
+                # 按逗号分割参数，但需要处理引号内的逗号
+                import re
+                # 使用正则表达式分割，考虑引号内的内容
+                param_pairs = re.findall(r'([^=,\s]+)\s*=\s*("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'|[^,\s]+)', tool_input)
+                
+                for key, value in param_pairs:
+                    # 去除引号
+                    if (value.startswith('"') and value.endswith('"')) or \
+                       (value.startswith("'") and value.endswith("'")):
+                        value = value[1:-1]
+                    params[key.strip()] = value.strip()
+            else:
+                # 对于没有键值对的情况，根据工具类型进行特殊处理
+                if tool_name == "bash":
+                    # 对于bash工具，直接将输入作为command参数
+                    params["command"] = tool_input
+                else:
+                    # 其他工具尝试智能推断参数
+                    tool_params = tool.get_parameters()
+                    if len(tool_params) == 1:
+                        # 如果只有一个参数，直接使用
+                        params[tool_params[0].name] = tool_input
+                    else:
+                        # 多参数但未指定参数名，报错
+                        raise ValueError(f"工具 '{tool_name}' 需要指定参数名称，格式应为: {tool_name}[参数名=值]")
+        
+        return params
 
 if __name__ == "__main__":
-    response = "Action: bash[command=ls -la]"
-    action_match = re.search(r'Action: (\w+)\[(.*?)\]', response)
-    if action_match:
-        action = action_match.group(1).strip()
-        action_input = action_match.group(2).strip()
-        print(f"Action: {action}和参数{action_input}")
+    response = "Action: Finish[当前项目的最外层结构如下：项目根目录位于 D:\agentWorkShop\Hello-Agents-Python，包含1个配置文件、2个代码目录和3个文件。]"
+
+
+    finish_match = re.search(r'Action: Finish(.*)$', response)
+    if finish_match:
+        finish_answer = finish_match.group(1).strip()
+        print(f"Finish: {finish_answer}")
+        
    
