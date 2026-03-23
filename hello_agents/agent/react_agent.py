@@ -1,5 +1,6 @@
 from typing import Optional, List, Dict
 from hello_agents.agent.agent import Agent
+from hello_agents.config import rag_config
 from hello_agents.llm.HelloAgentsLLM import HelloAgentsLLM
 from hello_agents.config.config import Config
 from hello_agents.memory.memory_tool import MemoryTool
@@ -9,6 +10,7 @@ from hello_agents.tool.tool_list.bash_tool import BashTool
 from hello_agents.tool.tool_list.write_tool import WriteTool
 from hello_agents.tool.tool_list.read_tool import ReadTool
 from hello_agents.config.memory_config import MemoryConfig
+from hello_agents.rag.rag_tool import RAGTool
 
 
 
@@ -232,11 +234,13 @@ if __name__ == "__main__":
     read_tool = ReadTool()
     write_tool = WriteTool()
     memory_tool = MemoryTool(user_id="user_xiaohong", memory_config=memory_config)
+    rag_tool = RAGTool(user_id="user_xiaohong", rag_config=rag_config)
     
     tool_registry.register_tool(bash_tool)
     tool_registry.register_tool(read_tool)
     tool_registry.register_tool(write_tool)
     tool_registry.register_tool(memory_tool)
+    tool_registry.register_tool(rag_tool)
     
     agent = ReActAgent(
         name="HelloAgent", 
@@ -244,4 +248,4 @@ if __name__ == "__main__":
         tool_registry=tool_registry, 
         config=Config()
     )
-    agent.run("我之前说的去日本，你说咋样？")
+    agent.run("请问不可申请退换货的情形有哪些？")

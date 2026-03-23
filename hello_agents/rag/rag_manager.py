@@ -6,6 +6,9 @@ from hello_agents.memory.qdrant.qdrant_vector_store import QdrantVectorStore
 from qdrant_client.models import PointStruct
 from markitdown import MarkItDown
 
+from hello_agents.embedder.qwen_embedder import QwenEmbedder
+
+
 
 class RAGManager:
     """RAG管理器
@@ -34,6 +37,7 @@ class RAGManager:
         os.makedirs(self.user_knowledge_base_path, exist_ok=True)
         os.makedirs(os.path.join(self.user_knowledge_base_path, "documents"), exist_ok=True)
         os.makedirs(os.path.join(self.user_knowledge_base_path, "chunks"), exist_ok=True)
+        os.makedirs(os.path.join(self.user_knowledge_base_path, "markdown"), exist_ok=True)
         
         # 使用用户ID作为命名空间的一部分
         self.user_namespace = f"{self.config.rag_namespace}_{user_id}"
@@ -49,24 +53,7 @@ class RAGManager:
     
     def _create_embedding_model(self):
         """创建嵌入模型"""
-        try:
-            import os
-            os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
-
-            from sentence_transformers import SentenceTransformer
-            model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2', 
-                          cache_folder='./models')
-            print("模型加载成功！")
-            return model
-        except Exception as e:
-            print(f"加载嵌入模型失败: {e}")
-            class SimpleEmbedder:
-                def encode(self, text: str) -> List[float]:
-                    vector = [0.0] * 384
-                    for i, c in enumerate(text[:384]):
-                        vector[i] = ord(c) / 128.0
-                    return vector
-            return SimpleEmbedder()
+        return QwenEmbedder()
     
     def _init_markitdown(self):
         """初始化 MarkItDown 转换器"""
@@ -156,7 +143,6 @@ class RAGManager:
             result = self.qdrant_client.scroll(
                 limit=100,
                 with_payload=True,
-                with_vectors=False,
                 scroll_filter={
                     "must": [
                         {"key": "user_id", "match": {"value": self.user_id}}
@@ -179,7 +165,7 @@ class RAGManager:
             return f"❌ 列出文档失败: {str(e)}"
     
     def _convert_to_markdown(self, path: str) -> str:
-        """将文档转换为Markdown格式"""
+        """将文档转换为Markdown格式并保存"""
         if not os.path.exists(path):
             return ""
         
@@ -188,22 +174,39 @@ class RAGManager:
         if ext in ['.txt', '.md', '.json', '.csv', '.xml', '.html']:
             try:
                 with open(path, 'r', encoding='utf-8') as f:
-                    return f.read()
+                    markdown_text = f.read()
             except Exception as e:
                 print(f"⚠️ 读取文本文件失败: {e}")
                 return ""
         
-        if self.markitdown:
+        elif self.markitdown:
             try:
                 result = self.markitdown.convert(path)
                 markdown_text = getattr(result, "text_content", None)
-                if isinstance(markdown_text, str) and markdown_text.strip():
-                    print(f"✅ MarkItDown转换成功: {path}")
-                    return markdown_text
+                if not isinstance(markdown_text, str) or not markdown_text.strip():
+                    print(f"⚠️ MarkItDown转换失败: 无有效内容")
+                    return ""
+                print(f"✅ MarkItDown转换成功: {path}")
             except Exception as e:
                 print(f"⚠️ MarkItDown转换失败: {e}")
+                return ""
+        else:
+            return ""
         
-        return ""
+        # 保存Markdown文件到markdown目录
+        try:
+            doc_filename = os.path.basename(path)
+            md_filename = os.path.splitext(doc_filename)[0] + '.md'
+            md_save_path = os.path.join(self.user_knowledge_base_path, "markdown", md_filename)
+            
+            with open(md_save_path, 'w', encoding='utf-8') as f:
+                f.write(markdown_text)
+            
+            print(f"✅ Markdown已保存到: {md_save_path}")
+        except Exception as e:
+            print(f"⚠️ 保存Markdown文件失败: {e}")
+        
+        return markdown_text
     
     def _chunk_text(self, text: str, chunk_size: int = 500, overlap: int = 50) -> List[Dict]:
         """将文本分块"""
@@ -319,7 +322,7 @@ class RAGManager:
         
         points = []
         for idx, chunk in enumerate(chunks):
-            vector = self.embedder.encode(chunk["content"]).tolist()
+            vector = self.embedder.encode(chunk["content"])
             
             metadata = {
                     "content": chunk["content"],
@@ -336,3 +339,67 @@ class RAGManager:
         self.qdrant_client.add_batch([p["memory_id"] for p in points], [p["vector"] for p in points], [p["metadata"] for p in points])
         
         print(f"✅ 索引了 {len(points)} 个文本块")
+
+def main():
+    """测试RAGManager的主要功能"""
+    print("=" * 50)
+    print("开始测试 RAGManager")
+    print("=" * 50)
+    
+    # 创建测试用的RAGConfig
+    
+    config = RAGConfig()
+    
+    # 初始化RAGManager
+    print("\n1. 初始化 RAGManager...")
+    rag_manager = RAGManager(user_id="user_xiaoming", config=config)
+    print("✅ RAGManager 初始化成功")
+    
+    # 测试添加文本
+    print("\n2. 测试添加文本...")
+    test_text = """
+    # 人工智能简介
+    
+    人工智能（Artificial Intelligence，AI）是计算机科学的一个分支，它企图了解智能的实质，并生产出一种新的能以人类智能相似的方式做出反应的智能机器。
+    
+    ## 机器学习
+    
+    机器学习是人工智能的一个子集，它使用统计技术使计算机能够从数据中学习，而无需明确编程。
+    
+    ## 深度学习
+    
+    深度学习是机器学习的一个分支，它使用多层神经网络来模拟人脑的工作方式。
+    """
+    
+    result = rag_manager.add_text(test_text, source="AI介绍文档")
+    print(result)
+    
+    # 测试列出文档
+    print("\n3. 测试列出文档...")
+    result = rag_manager.list_documents()
+    print(result)
+    
+    # 创建一个测试文本文件
+    print("\n4. 测试索引文档...")
+    test_file_path = "电子商务.md"
+    
+    result = rag_manager.index_document(test_file_path)
+    print(result)
+    
+    # 再次列出文档
+    print("\n5. 再次列出文档...")
+    result = rag_manager.list_documents()
+    print(result)
+    
+    # 清理测试文件
+    if os.path.exists(test_file_path):
+        os.remove(test_file_path)
+        print(f"\n✅ 已清理测试文件: {test_file_path}")
+    
+    print("\n" + "=" * 50)
+    print("RAGManager 测试完成")
+    print("=" * 50)
+
+
+if __name__ == "__main__":
+    main()

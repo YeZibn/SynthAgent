@@ -4,6 +4,7 @@ from typing import List, Dict, Optional
 import time
 import os
 import uuid
+from qdrant_client.http.models import Filter, FieldCondition, MatchValue, MatchText
 
 
 class QdrantVectorStore:
@@ -15,7 +16,7 @@ class QdrantVectorStore:
     - 本地队列缓存（可选）
     """
     
-    def __init__(self, url: str, api_key: Optional[str], collection_name: str = "memory_collection", vector_size: int = 384):
+    def __init__(self, url: str, api_key: Optional[str], collection_name: str = "memory_collection", vector_size: int = 512):
         self.url = url
         self.api_key = api_key
         self.collection_name = collection_name
@@ -135,7 +136,7 @@ class QdrantVectorStore:
             print(f"Qdrant批量添加向量失败: {e}")
             pass
     
-    def search(self, query_vector: List[float], limit: int = 10, filter_conditions: Optional[Dict] = None) -> List[Dict]:
+    def search(self, query_vector: List[float], limit: int = 10, query_filter: Filter = None) -> List[Dict]:
         """向量搜索"""
         try:
             search_result = self._retry_operation(
@@ -143,7 +144,7 @@ class QdrantVectorStore:
                 collection_name=self.collection_name,
                 query=query_vector,
                 limit=limit,
-                query_filter=filter_conditions
+                query_filter=query_filter
             )
             
             hits = []
@@ -161,7 +162,7 @@ class QdrantVectorStore:
             print(f"Qdrant搜索失败: {e}")
             return []
 
-    def scroll(self, limit: int = 10, with_payload: bool = False, with_vector: bool = False, scroll_filter: Optional[Dict] = None) -> List[Dict]:
+    def scroll(self, limit: int = 10, with_payload: bool = False, scroll_filter: Optional[Dict] = None) -> List[Dict]:
         """滚动查询"""
         try:
             scroll_result = self._retry_operation(
@@ -169,8 +170,7 @@ class QdrantVectorStore:
                 collection_name=self.collection_name,
                 limit=limit,
                 with_payload=with_payload,
-                with_vectors=with_vector,
-                query_filter=scroll_filter
+                scroll_filter=scroll_filter
             )
         
             
@@ -236,70 +236,7 @@ if __name__ == "__main__":
     store = QdrantVectorStore(
         url=qdrant_url,
         api_key=qdrant_api_key,
-        collection_name="test_memory_collection",
-        vector_size=384
+        collection_name="rag_collection",
+        vector_size=512
     )
     
-    # 检查连接状态
-    print(f"连接状态: {store.is_connected()}")
-    
-    # 获取统计信息
-    stats = store.get_stats()
-    print(f"集合统计: {stats}")
-    
-    # 测试添加单个向量
-    print("\n--- 测试添加单个向量 ---")
-    test_vector = [0.1] * 384
-    store.add(
-        memory_id="memory_001",
-        vector=test_vector,
-        metadata={
-            "content": "这是一个测试记忆",
-            "timestamp": time.time(),
-            "importance": 0.8,
-            "tags": ["test", "memory"]
-        }
-    )
-    print("添加单个向量完成")
-    
-    # 测试批量添加
-    print("\n--- 测试批量添加向量 ---")
-    memory_ids = ["memory_002", "memory_003", "memory_004"]
-    vectors = [[0.2] * 384, [0.3] * 384, [0.4] * 384]
-    metadata_list = [
-        {"content": "批量测试1", "timestamp": time.time(), "importance": 0.7},
-        {"content": "批量测试2", "timestamp": time.time(), "importance": 0.9},
-        {"content": "批量测试3", "timestamp": time.time(), "importance": 0.5}
-    ]
-    store.add_batch(memory_ids, vectors, metadata_list)
-    print("批量添加向量完成")
-    
-    # 测试搜索
-    print("\n--- 测试向量搜索 ---")
-    query_vector = [0.15] * 384
-    results = store.search(query_vector, limit=3)
-    print(f"搜索结果 (返回{len(results)}条):")
-    for hit in results:
-        print(f"  ID: {hit['id']}, 相似度: {hit['score']:.4f}, 元数据: {hit['metadata']}")
-    
-    # 再次获取统计信息
-    print("\n--- 更新后的统计信息 ---")
-    stats = store.get_stats()
-    print(f"集合统计: {stats}")
-    
-    # 测试删除
-    print("\n--- 测试删除向量 ---")
-    store.delete("memory_004")
-    print("删除 memory_004 完成")
-    
-    # 批量删除
-    print("\n--- 测试批量删除 ---")
-    store.delete_batch(["memory_002", "memory_003"])
-    print("批量删除 memory_002, memory_003 完成")
-    
-    # 最终统计
-    print("\n--- 最终统计信息 ---")
-    stats = store.get_stats()
-    print(f"集合统计: {stats}")
-    
-    print("\n测试完成!")

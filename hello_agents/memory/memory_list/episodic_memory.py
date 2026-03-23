@@ -6,6 +6,7 @@ from hello_agents.memory.qdrant.qdrant_vector_store import QdrantVectorStore
 from hello_agents.memory.memory import MemoryItem, BaseMemory
 from hello_agents.config.memory_config import MemoryConfig
 from hello_agents.memory.memory_list.episodic import Episode
+from hello_agents.embedder.qwen_embedder import QwenEmbedder
 
 
 class EpisodicMemory(BaseMemory):
@@ -57,25 +58,7 @@ class EpisodicMemory(BaseMemory):
             self.sessions = {}
     
     def _create_embedding_model(self):
-        """创建嵌入模型"""
-        try:
-            import os
-            os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
-
-            from sentence_transformers import SentenceTransformer
-            model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2', 
-                          cache_folder='./models')
-            print("模型加载成功！")
-            return model
-        except Exception as e:
-            print(f"加载嵌入模型失败: {e}")
-            class SimpleEmbedder:
-                def encode(self, text: str) -> List[float]:
-                    vector = [0.0] * 384
-                    for i, c in enumerate(text[:384]):
-                        vector[i] = ord(c) / 128.0
-                    return vector
-            return SimpleEmbedder()
+        return QwenEmbedder()
     
     def add(self, memory_item: MemoryItem) -> str:
         """添加情景记忆"""
@@ -462,7 +445,7 @@ if __name__ == "__main__":
     
     # 测试语义检索 - 模拟用户提出新问题
     print("\n🔍 === 测试语义检索 ===")
-    print("用户问：'我之前说的那个看樱花的地方，还有什么需要注意的？'\n")
+    print("用户问：'东京樱花赏樱地点推荐注意事项'\n")
     
     results = memory.retrieve("东京樱花赏樱地点推荐注意事项", limit=3, user_id="user_xiaoming")
     for i, result in enumerate(results, 1):

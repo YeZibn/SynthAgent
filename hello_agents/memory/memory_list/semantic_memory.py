@@ -10,6 +10,8 @@ from hello_agents.config.memory_config import MemoryConfig
 from hello_agents.memory.qdrant.qdrant_vector_store import QdrantVectorStore
 from hello_agents.memory.neo4j.neo4j_graph_store import Neo4jGraphStore, Entity, Relation
 from hello_agents.llm.HelloAgentsLLM import HelloAgentsLLM
+from hello_agents.embedder.qwen_embedder import QwenEmbedder
+
 
 
 class SemanticMemory(BaseMemory):
@@ -55,26 +57,7 @@ class SemanticMemory(BaseMemory):
         self._cache_timeout = 3600
     
     def _create_embedding_model(self):
-        """创建嵌入模型"""
-        try:
-            import os
-            os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
-
-            from sentence_transformers import SentenceTransformer
-            model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2', 
-                          cache_folder='./models')
-            print("模型加载成功！")
-            return model
-        except Exception as e:
-            print(f"加载嵌入模型失败: {e}")
-            # 降级到简单模型
-            class SimpleEmbedder:
-                def encode(self, text: str) -> List[float]:
-                    vector = [0.0] * 384
-                    for i, c in enumerate(text[:384]):
-                        vector[i] = ord(c) / 128.0
-                    return vector
-            return SimpleEmbedder()
+        return QwenEmbedder()
     
     def _init_nlp(self):
         """初始化NLP处理器"""
