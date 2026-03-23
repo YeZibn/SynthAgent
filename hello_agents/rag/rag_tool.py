@@ -68,7 +68,7 @@ class RAGTool(Tool):
         else:
             return f"❌ 未知的操作: {action}。仅支持的操作: search"
     
-    def _search_documents(self, parameters: Dict[str, Any]) -> str:
+    def _search_documents(self, parameters: Dict[str, Any]) -> List[Dict[str, Any]]:
         """检索文档"""
         query = parameters.get("query")
         if not query:
@@ -99,15 +99,9 @@ class RAGTool(Tool):
             
             if not search_result:
                 return f"❌ 未找到相关文档，查询: {query}"
+
             
-            results = []
-            for idx, hit in enumerate(search_result, 1):
-                content = hit.payload.get("content", "")
-                source = hit.payload.get("source", "未知")
-                score = hit.score
-                results.append(f"【结果{idx}】(相似度: {score:.3f})\n来源: {source}\n内容: {content[:200]}...")
-            
-            return f"✅ 检索到 {len(search_result)} 个相关文档:\n\n" + "\n\n".join(results)
+            return search_result
         except Exception as e:
             return f"❌ 检索文档失败: {str(e)}"
     
