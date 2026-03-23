@@ -10,7 +10,7 @@ class RAGConfig(BaseModel):
     
     knowledge_base_path: str = Field(default="knowledge_base", description="知识库路径")
     qdrant_url: str = Field(default="http://localhost:6333", description="Qdrant向量数据库URL")
-    qdrant_api_key: Optional[str] = Field(default="default_api_key", description="Qdrant API密钥")
+    qdrant_api_key: Optional[str] = Field(default=None, description="Qdrant API密钥")
     collection_name: str = Field(default="rag_collection", description="Qdrant向量数据库集合名称")
     rag_namespace: str = Field(default="rag", description="RAG命名空间")
     embedding_model_name: str = Field(default="all-MiniLM-L6-v2", description="文本嵌入模型名称")
