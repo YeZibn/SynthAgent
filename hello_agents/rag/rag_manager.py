@@ -154,7 +154,6 @@ class RAGManager:
                 return "❌ Qdrant客户端未初始化"
             
             result = self.qdrant_client.scroll(
-                collection_name=self.config.collection_name,
                 limit=100,
                 with_payload=True,
                 with_vectors=False,

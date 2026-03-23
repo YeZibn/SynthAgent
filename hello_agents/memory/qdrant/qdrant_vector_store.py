@@ -160,6 +160,25 @@ class QdrantVectorStore:
         except Exception as e:
             print(f"Qdrant搜索失败: {e}")
             return []
+
+    def scroll(self, limit: int = 10, with_payload: bool = False, with_vector: bool = False, scroll_filter: Optional[Dict] = None) -> List[Dict]:
+        """滚动查询"""
+        try:
+            scroll_result = self._retry_operation(
+                self._client.scroll,
+                collection_name=self.collection_name,
+                limit=limit,
+                with_payload=with_payload,
+                with_vectors=with_vector,
+                query_filter=scroll_filter
+            )
+        
+            
+            return scroll_result
+        except Exception as e:
+            print(f"Qdrant滚动查询失败: {e}")
+            return []
+
     
     def delete(self, memory_id: str):
         """删除向量"""
