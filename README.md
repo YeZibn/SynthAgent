@@ -2,7 +2,20 @@
 
 一个基于 Python 的智能代理（Agent）应用开发框架，支持 ReAct 推理模式、记忆管理和 RAG（检索增强生成）能力。
 
-## 项目结构
+## 📋 项目概览
+
+Hello Agents Python 是一个功能强大的智能代理开发框架，旨在帮助开发者快速构建具有推理能力、记忆管理和知识检索能力的智能应用。
+
+### 🌟 核心特性
+
+- **ReAct 推理模式**：结合推理与行动，实现更智能的决策过程
+- **多层记忆架构**：工作记忆、情景记忆、语义记忆，支持用户数据隔离
+- **RAG 增强能力**：多格式文档处理，提高知识获取和利用效率
+- **可扩展工具系统**：内置多种工具，支持自定义工具注册
+- **上下文管理**：智能构建和管理对话上下文
+- **多轮对话支持**：保持对话连贯性和一致性
+
+## 📁 项目结构
 
 ```
 Hello-Agents-Python/
@@ -59,7 +72,21 @@ Hello-Agents-Python/
 └── setup.py                  # 包安装配置
 ```
 
-## 核心功能
+## 🏗️ 系统架构
+
+### 整体架构图
+
+![系统架构图](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Hello%20Agents%20Python%20system%20architecture%20diagram%20with%20Agent%2C%20Memory%20System%2C%20RAG%20System%2C%20and%20Tool%20System%20components%2C%20professional%20software%20diagram%2C%20clean%20layout%2C%20colorful&image_size=landscape_16_9)
+
+### 核心模块关系
+
+1. **Agent 模块**：作为系统的核心，协调其他模块的工作
+2. **记忆系统**：提供多层记忆能力，支持长期和短期记忆
+3. **RAG 系统**：提供文档检索和知识增强能力
+4. **工具系统**：提供各种实用工具，扩展 Agent 的能力
+5. **上下文管理**：维护对话的连贯性和一致性
+
+## 🚀 核心功能
 
 ### 1. Agent 系统
 
@@ -68,6 +95,12 @@ Hello-Agents-Python/
 - 工具调用（tool_calls）
 - 多轮对话
 - 上下文管理
+
+**工作流程**：
+
+![Agent工作流程图](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=ReAct%20Agent%20workflow%20diagram%20showing%20reasoning%20and%20acting%20process%2C%20step-by-step%20flow%20chart%2C%20professional%20software%20diagram&image_size=landscape_16_9)
+
+**使用示例**：
 
 ```python
 from hello_agents.agent.react_agent import ReActAgent
@@ -89,11 +122,18 @@ result = agent.run("你的问题")
 
 三层记忆架构，支持用户数据隔离：
 
-| 记忆类型 | 描述 | 存储 |
-|---------|------|------|
-| 工作记忆 (Working Memory) | 短期记忆，有容量限制 | SQLite |
-| 情景记忆 (Episodic Memory) | 按会话存储的经历 | SQLite + Qdrant |
-| 语义记忆 (Semantic Memory) | 知识图谱，实体关系 | Neo4j + Qdrant |
+| 记忆类型 | 描述 | 存储 | 特点 |
+|---------|------|------|------|
+| 工作记忆 (Working Memory) | 短期记忆，有容量限制 | SQLite | 快速存取，容量有限 |
+| 情景记忆 (Episodic Memory) | 按会话存储的经历 | SQLite + Qdrant | 按时间序列存储，支持语义检索 |
+| 语义记忆 (Semantic Memory) | 知识图谱，实体关系 | Neo4j + Qdrant | 结构化知识，支持关系查询 |
+| 感知记忆 (Perceptual Memory) | 感知信息存储 | SQLite | 存储感知数据，如视觉、听觉信息 |
+
+**记忆系统架构**：
+
+![记忆系统架构图](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Memory%20system%20architecture%20diagram%20showing%20four%20memory%20types%20(working%2C%20episodic%2C%20semantic%2C%20perceptual)%20with%20storage%20layers%2C%20professional%20software%20diagram%2C%20color-coded&image_size=landscape_16_9)
+
+**使用示例**：
 
 ```python
 from hello_agents.memory.memory_tool import MemoryTool
@@ -118,6 +158,12 @@ results = memory_tool.run({
 ### 3. RAG 系统
 
 检索增强生成系统，支持多格式文档处理：
+
+**RAG 工作流程**：
+
+![RAG工作流程图](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=RAG%20system%20workflow%20diagram%20showing%20document%20indexing%2C%20vector%20embedding%2C%20query%20processing%2C%20and%20context%20enhancement%2C%20professional%20software%20diagram&image_size=landscape_16_9)
+
+**使用示例**：
 
 ```python
 from hello_agents.rag.rag_tool import RAGTool
@@ -158,6 +204,12 @@ rag_manager.list_documents()
 
 可扩展的工具注册与调用机制：
 
+**工具系统架构**：
+
+![工具系统架构图](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Tool%20system%20architecture%20diagram%20showing%20tool%20registry%2C%20tool%20chain%2C%20and%20built-in%20tools%2C%20professional%20software%20diagram&image_size=landscape_16_9)
+
+**使用示例**：
+
 ```python
 from hello_agents.tool.tool_registry import ToolRegistry
 from hello_agents.tool.tool_list.bash_tool import BashTool
@@ -176,7 +228,7 @@ result = registry.execute_tool("bash", "command=ls -la")
 - **memory**: 记忆操作
 - **rag**: 文档检索
 
-## 安装
+## 🔧 安装指南
 
 ### 环境要求
 - Python 3.10+
@@ -197,7 +249,25 @@ pip install -r requirements.txt
 
 可在 `hello_agents/config/` 目录下修改数据库连接配置。
 
-## 使用示例
+### 快速启动
+
+1. **安装依赖**：
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **配置环境**：
+   复制 `.env.example` 文件为 `.env` 并填写相应配置
+
+3. **启动服务**：
+   确保 Neo4j 和 Qdrant 服务已启动
+
+4. **运行示例**：
+   ```bash
+   python hello_agents/main.py
+   ```
+
+## 📖 使用示例
 
 ### 1. 创建 Agent 并使用工具
 
@@ -274,7 +344,26 @@ result = rag.query("退换货期限")
 print(result)
 ```
 
-## 配置说明
+### 4. 工具链使用
+
+```python
+from hello_agents.tool.tool_chain import ToolChain
+from hello_agents.tool.tool_list.read_tool import ReadTool
+from hello_agents.tool.tool_list.write_tool import WriteTool
+
+# 创建工具链
+chain = ToolChain()
+chain.add_tool(ReadTool())
+chain.add_tool(WriteTool())
+
+# 执行工具链
+result = chain.run([
+    {"tool": "read", "params": {"file_path": "input.txt"}},
+    {"tool": "write", "params": {"file_path": "output.txt", "content": "处理后的内容"}}
+])
+```
+
+## ⚙️ 配置说明
 
 ### 记忆配置 (memory_config.py)
 
@@ -307,7 +396,7 @@ config = RAGConfig(
 )
 ```
 
-## 目录结构
+## 📁 目录结构
 
 索引后的文档会保存在以下目录：
 
@@ -319,7 +408,7 @@ knowledge_base/
     └── markdown/      # 转换后的 Markdown
 ```
 
-## 依赖
+## 📦 依赖
 
 主要依赖：
 - `sentence-transformers`: 文本嵌入模型
@@ -327,10 +416,12 @@ knowledge_base/
 - `neo4j`: Neo4j 图数据库驱动
 - `markitdown`: 文档格式转换
 - `pydantic`: 数据验证
+- `python-dotenv`: 环境变量管理
+- `langchain`: 语言模型工具链
 
 详见 `requirements.txt`
 
-## 运行测试
+## 🧪 运行测试
 
 ```bash
 # 运行所有测试
@@ -338,12 +429,70 @@ pytest
 
 # 运行特定测试
 pytest tests/test_memory.py -v
+
+# 运行测试并生成覆盖率报告
+pytest --cov=hello_agents tests/
 ```
 
-## 许可证
+## 🤝 贡献指南
+
+### 开发流程
+
+1. **Fork 仓库**
+2. **创建分支**：`git checkout -b feature/your-feature`
+3. **提交修改**：`git commit -m "Add your feature"`
+4. **推送分支**：`git push origin feature/your-feature`
+5. **创建 Pull Request**
+
+### 代码规范
+
+- 遵循 PEP 8 编码规范
+- 使用类型提示
+- 编写单元测试
+- 保持代码简洁明了
+
+## 📄 许可证
 
 MIT License
 
-## 联系方式
+## 📞 联系方式
 
 如有问题或建议，请提交 Issue 或 Pull Request。
+
+---
+
+## 🎯 应用场景
+
+### 1. 智能客服
+- 记忆用户偏好和历史对话
+- 快速检索产品文档和政策
+- 提供个性化服务
+
+### 2. 个人助手
+- 管理个人日程和任务
+- 学习用户习惯和偏好
+- 提供智能建议
+
+### 3. 知识管理
+- 文档检索和管理
+- 知识图谱构建
+- 智能问答系统
+
+### 4. 开发工具
+- 代码助手
+- 文档生成
+- 自动化工作流
+
+## 🌟 未来规划
+
+- [ ] 支持更多 LLM 模型
+- [ ] 增强记忆系统的语义理解能力
+- [ ] 优化 RAG 系统的检索效率
+- [ ] 添加更多内置工具
+- [ ] 支持多语言处理
+- [ ] 提供 Web 界面
+- [ ] 支持容器化部署
+
+---
+
+**Hello Agents Python** - 让智能代理开发变得简单而强大！🚀
