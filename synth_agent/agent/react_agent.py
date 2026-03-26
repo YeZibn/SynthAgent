@@ -235,23 +235,9 @@ class ReActAgent(Agent):
 
 if __name__ == "__main__":
     llm = SynthLLM()
-    tool_registry = ToolRegistry()
 
-    # bash_tool = BashTool()
-    # read_tool = ReadTool()
-    # write_tool = WriteTool()
-    # memory_tool = MemoryTool(user_id="user_xiaohong", memory_config=memory_config)
-    # rag_tool = RAGTool(user_id="user_xiaohong", rag_config=rag_config)
-    baidu_search_tool = BaiduSearchTool()
-    url_search_tool = UrlSearchTool()
     
-    # tool_registry.register_tool(bash_tool)
-    # tool_registry.register_tool(read_tool)
-    # tool_registry.register_tool(write_tool)
-    # tool_registry.register_tool(memory_tool)
-    # tool_registry.register_tool(rag_tool)
-    tool_registry.register_tool(baidu_search_tool)
-    tool_registry.register_tool(url_search_tool)
+
     
     agent = ReActAgent(
         name="HelloAgent", 
