@@ -3,7 +3,7 @@ from typing import List, Dict
 from synth_agent.tool.tool_list.bash_tool import BashTool
 from synth_agent.tool.tool_list.read_tool import ReadTool
 import re
-from synth_agent.mcp.comfyImage_mcp_server import generate_image_async
+from synth_agent.mcp.jimeng_mcp_server import generate_image_async
 
 
 

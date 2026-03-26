@@ -122,12 +122,21 @@ def create_plan_flow(
     from synth_agent.tool.tool_list.write_tool import WriteTool
     from synth_agent.tool.tool_list.web.baidu_search_tool import BaiduSearchTool
     from synth_agent.tool.tool_list.web.url_search_tool import UrlSearchTool
+    from synth_agent.tool.mcp_tool.mcp_tool import JimengAITool, MCPTestTool
 
     llm = SynthLLM(model=model, api_key=api_key, base_url=base_url)
 
     tool_registry = ToolRegistry()
 
-    default_tools = [BashTool(), ReadTool(), WriteTool(), BaiduSearchTool(), UrlSearchTool()]
+    default_tools = [
+        BashTool(),
+        ReadTool(),
+        WriteTool(),
+        BaiduSearchTool(),
+        UrlSearchTool(),
+        JimengAITool(),  # 添加即梦 AI 工具
+        MCPTestTool()    # 添加 MCP 测试工具
+    ]
     for tool in (tools or default_tools):
         tool_registry.register_tool(tool)
 

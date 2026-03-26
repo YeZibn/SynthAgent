@@ -4,6 +4,7 @@ from synth_agent.config import rag_config
 from synth_agent.llm.synth_LLM import SynthLLM
 from synth_agent.config.config import Config
 from synth_agent.memory.memory_tool import MemoryTool
+from synth_agent.tool import tool_registry
 from synth_agent.tool.tool_registry import ToolRegistry
 import json
 from synth_agent.tool.tool_list.bash_tool import BashTool
@@ -13,6 +14,7 @@ from synth_agent.config.memory_config import MemoryConfig
 from synth_agent.rag.rag_tool import RAGTool
 from synth_agent.tool.tool_list.web.baidu_search_tool import BaiduSearchTool
 from synth_agent.tool.tool_list.web.url_search_tool import UrlSearchTool
+from synth_agent.tool.mcp_tool.jimeng_tool import JimengTool
 
 
 
@@ -236,14 +238,16 @@ class ReActAgent(Agent):
 if __name__ == "__main__":
     llm = SynthLLM()
 
-    
+    tool_registry = ToolRegistry()
 
-    
+    tool_registry.register_tool(JimengTool())
+
     agent = ReActAgent(
         name="HelloAgent", 
         llm=llm, 
         tool_registry=tool_registry, 
         config=Config(),
-        system_prompt="请借助网络搜索功能"
+        system_prompt="你是一个生图工具"
     )
-    agent.run("张雪峰他死了吗")
+
+    agent.run("生成一张小猫的照片")
